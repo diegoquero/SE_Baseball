@@ -1,7 +1,7 @@
 from model.model import Model
 model = Model()
 model.getListaAnno()
-
+print(model.getSalarioSquadre())
 model.getGrafoSquadre(2015)
 print(model.G)
 

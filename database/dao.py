@@ -1,5 +1,6 @@
 from database.DB_connect import DBConnect
 from model.TEAM import Team
+from model.appearance import Appearance
 from model.salary import Salary
 
 
@@ -41,3 +42,23 @@ class DAO:
         cursor.close()
         conn.close()
         return result
+
+    @staticmethod
+    def readAllAppearance():
+        conn = DBConnect.get_connection()
+
+        result = {}
+
+        cursor = conn.cursor(dictionary=True)
+        query = """ SELECT * FROM appearance """
+
+        cursor.execute(query)
+
+        for row in cursor:
+            appearance = Appearance(**row)
+            result[appearance.id] = appearance
+
+        cursor.close()
+        conn.close()
+        return result
+

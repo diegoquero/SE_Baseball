@@ -8,95 +8,177 @@ from database.dao import DAO
 
 class Model:
     def __init__(self):
-        self.dictTeams = DAO.readAllTeams()
-        self.G = nx.Graph()
+        self.dictTeam = DAO.readAllTeams()
+        self.dictSalary = DAO.readAllSalary()
+        self.dictAppearance = DAO.readAllAppearance()
+        self.grafo = nx.Graph()
 
+    def getAnno(self):
+        result = set()
+        for team in self.dictTeam.values():
+            result.add(team.year)
+        list(result)
+        return result
 
-    def getListaAnno (self):
-        self.lista_anno = []
-        dictTeams= DAO.readAllTeams()
-        for t in dictTeams.keys():
-            if dictTeams[t].year >= 1980:
-                self.lista_anno.append(dictTeams[t].year)
-        self.lista_anno = set(self.lista_anno)
-        return self.lista_anno
+    def getTeams(self, anno):
+        result = []
+        for team in self.dictTeam.values():
+            if team.year == anno:
+                result.append(team)
+        return result
 
+    def getSalarioSquadre(self, anno_selezionato: int):
+        self.dictSalarioSquadre = {}
+        for salary in self.dictSalary.values():
+            if salary.year == anno_selezionato:
+                if self.dictSalarioSquadre.get(salary.team_id):
+                    self.dictSalarioSquadre[salary.team_id] += salary.salary
+                else:
+                    self.dictSalarioSquadre[salary.team_id] = salary.salary
 
+    def getGrafo(self, anno):
+        self.grafo.clear()
+        listaSquadreFiltrtata = self.getTeams(anno)
+        self.getSalarioSquadre(anno)
+        dictSalarioSquadre = self.dictSalarioSquadre
+        self.grafo.add_nodes_from(listaSquadreFiltrtata)
+        for team1 in self.grafo.nodes():
+            for team2 in self.grafo.nodes():
+                if team1 != team2:
+                    if not self.grafo.has_edge(team2, team1):
+                        peso = dictSalarioSquadre[team1.id] + dictSalarioSquadre[team2.id]
+                        self.grafo.add_edge(team1, team2, weight=peso)
 
-    def getSalarioSquadre(self):
-        self.salario_squadre = {}
-        self.dictSalario = DAO.readAllSalary()
-        for s in self.dictSalario.keys():
-            team_id = self.dictSalario[s].team_id
-            if self.salario_squadre.get(team_id):
-                self.salario_squadre[team_id] += self.dictSalario[s].salary
+    def getDettagli(self, team_alfa):
+        vicini = self.grafo.neighbors(team_alfa)
+        result = []
+        for team in vicini:
+            peso = self.grafo[team_alfa][team]['weight']
+            result.append((team, peso))
+        result.sort(key=lambda x: x[1], reverse=True)
+        return result
+
+    def getPercorso(self, start):
+        self.percorsoOttimo = []
+        self.pesoOttimo = 0
+        self.ricorsione([start], 0)
+
+    def ricorsione(self, parziale, peso_parziale):
+        if peso_parziale > self.pesoOttimo:
+            self.pesoOttimo = peso_parziale
+            self.percorsoOttimo = parziale.copy()
+        lista_iniziale = []
+        nodo_corrente = parziale[-1]
+        if len(parziale) < 2:
+            for nodo in self.grafo.neighbors(nodo_corrente):
+                if nodo not in parziale:
+                    peso = self.grafo[nodo_corrente][nodo]['weight']
+                    lista_iniziale.append((nodo, peso))
+            lista_iniziale.sort(key=lambda x: x[1], reverse=True)
+            lista_ottima = lista_iniziale[:3]
+        else:
+            for nodo in self.grafo.neighbors(nodo_corrente):
+                if nodo not in parziale:
+                    peso = self.grafo[nodo_corrente][nodo]['weight']
+                    ultimo_peso = self.grafo[parziale[-2]][nodo_corrente]['weight']
+                    if peso < ultimo_peso:
+                        lista_iniziale.append((nodo, peso))
+            lista_iniziale.sort(key=lambda x: x[1], reverse=True)
+            lista_ottima = lista_iniziale[:3]
+
+        for nodo, peso in lista_ottima:
+            parziale.append(nodo)
+            nuovo_peso_parziale = peso_parziale + peso
+            self.ricorsione(parziale, nuovo_peso_parziale)
+            parziale.pop()
+
+    # CONSEGNA1
+    '''Punto 1
+
+    Si costruisca un grafo non orientato e pesato in cui:
+
+    i nodi rappresentano le squadre
+
+    esiste un arco tra due squadre se hanno almeno un giocatore che ha militato in entrambe
+
+    il peso dell’arco è il numero totale di stagioni in cui i giocatori condivisi hanno giocato per entrambe le squadre
+
+    📌 Note tipiche d’esame:
+
+    una stagione conta una sola volta per giocatore
+
+    più giocatori ⇒ somma delle stagioni
+
+    non considerare stagioni fuori dal database
+
+    🎯 Perché è plausibile:
+
+    stesso identico schema concettuale di Baseball
+
+    cambia solo la misura del peso
+
+    perfetta per vedere se sai precomputare bene'''
+
+    def dictGiocatori_x_team(self):
+        result = {}
+        for appearance in self.dictAppearance.values():
+            if result.get(appearance.player_id):
+                if result[appearance.player_id].get(appearance.team_code):
+                    result[appearance.player_id][appearance.team_code] += 1
+                else:
+                    result[appearance.player_id][appearance.team_code] = 1
             else:
-                self.salario_squadre[team_id] = self.dictSalario[s].salary
-        return self.salario_squadre
+                result[appearance.player_id] = {appearance.team_code: 1}
+        return result
 
-    def getGrafoSquadre(self, anno):
-        self.dictSquadreFiltrato = {}
-        dictSalario = self.getSalarioSquadre()
-        for team in self.dictTeams.keys():
-            if self.dictTeams[team].year == int(anno):
-                self.dictSquadreFiltrato[team] = self.dictTeams[team]
-        for i in self.dictSquadreFiltrato.keys():
-            for j in self.dictSquadreFiltrato.keys():
-                if i != j:
-                    if dictSalario.get(i) and dictSalario.get(j):
-                        self.G.add_edge(self.dictSquadreFiltrato[i], self.dictSquadreFiltrato[j], weight= dictSalario[i] + dictSalario[j])
+    def grafo2(self):
+        self.grafo2 = nx.Graph()
+        dictGiocatori_x_team = self.dictGiocatori_x_team()
+        # nodi
+        result = []
+        for team in self.dictTeam.values():
+            result.append(team.team_code)
+        nodi = list(set(result))
+        self.grafo2.add_nodes_from(nodi)
+        dictArchi = {}
+        for giocatore, squadre in dictGiocatori_x_team.items():
+            teams = list(squadre.keys())
+            for i in range(len(teams)):
+                for j in range(i + 1, len(teams)):
+                    t1, t2 = teams[i], teams[j]
+                    coppia = tuple(sorted((t1, t2)))
+                    peso = min(squadre[t1], squadre[t2])
+                    dictArchi[coppia] = dictArchi.get(coppia, 0) + peso
+        for arco, peso in dictArchi.items():
+            if self.grafo2.has_node(arco[0]) and self.grafo2.has_node(arco[1]):
+                self.grafo2.add_edge(arco[0], arco[1], weight=peso)
+        print(self.grafo2)
 
-    def getPercorsoMassimo(self, start):
-        oggetto_start = self.dictSquadreFiltrato[start]
-        self._bestPath = [oggetto_start]
-        self._bestEdgeWeights = []
-        self._bestTotal = 0
-        self.neighbors_sorted = {}
-        for v in self.G.nodes():
-            list = []
-            for u in self.G.neighbors(v):
-                w = self.G[v][u].get("weight")
-                list.append((u, w))
-            list.sort(key=lambda x: x[1], reverse=True)
-            self.neighbors_sorted[v] = list
 
-        self.dfs([oggetto_start], [], 0, math.inf)
 
-        return self._bestPath, self._bestEdgeWeights, self._bestTotal
 
-    # --- DFS con backtracking ---
-    def dfs(self,path, edgeW, total, last_w):
-        # aggiorno best (cammino valido sempre, anche lunghezza 1)
-        if total > self._bestTotal:
-            self._bestTotal = total
-            self._bestPath = path.copy()
-            self._bestEdgeWeights = edgeW.copy()
 
-        last = path[-1]
 
-        # Considera solo i primi K archi (in ordine decrescente),
-        # ma saltando quelli che non rispettano vincoli.
-        considered = 0
-        for (nxt, w) in self.neighbors_sorted[last]:
-            if considered >= 3:
-                break
 
-            # vincolo pesi strettamente decrescenti
-            if w >= last_w:
-                continue
 
-            # vincolo cammino semplice
-            if nxt in path:
-                continue
 
-            # questo arco è un candidato valido => lo conto nei "K considerati"
-            considered += 1
 
-            path.append(nxt)
-            edgeW.append(w)
-            self.dfs(path, edgeW, total + w, w)
-            edgeW.pop()
-            path.pop()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
