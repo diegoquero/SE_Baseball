@@ -42,10 +42,12 @@ class Model:
         self.getSalarioSquadre(anno)
         dictSalarioSquadre = self.dictSalarioSquadre
         self.grafo.add_nodes_from(listaSquadreFiltrtata)
-        for team1 in self.grafo.nodes():
-            for team2 in self.grafo.nodes():
-                if team1 != team2:
-                    if not self.grafo.has_edge(team2, team1):
+        lista_nodi = list(self.grafo.nodes())
+        for i in range(len(lista_nodi)):
+            for j in range(i+1,len(lista_nodi)):
+                team1 = lista_nodi[i]
+                team2 = lista_nodi[j]
+                if not self.grafo.has_edge(team2, team1):
                         peso = dictSalarioSquadre[team1.id] + dictSalarioSquadre[team2.id]
                         self.grafo.add_edge(team1, team2, weight=peso)
 
